@@ -2,7 +2,6 @@ from builtins import range
 import numpy as np
 
 
-
 def affine_forward(x, w, b):
     """
     Computes the forward pass for an affine (fully-connected) layer.
@@ -28,13 +27,15 @@ def affine_forward(x, w, b):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N = x.shape[0]  # number of examples
+    x_row = x.reshape(N, -1)  # reshape input to matrix (N, D)
+    out = np.dot(x_row, w) + b  # perform linear operation
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
-    cache = (x, w, b)
+    cache = (x, w, b)  # cache the values for backward pass
     return out, cache
 
 
@@ -61,7 +62,11 @@ def affine_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    # Рассчитываем градиенты
+    x_reshaped = x.reshape(x.shape[0], -1)  # Переформатирование x к (N, D)
+    dw = x_reshaped.T.dot(dout)  # Градиент по весам
+    db = dout.sum(axis=0)  # Градиент по смещениям
+    dx = dout.dot(w.T).reshape(x.shape)  # Градиент по входным данным
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -259,14 +264,6 @@ def batchnorm_backward(dout, cache):
     ###########################################################################
 
     return dx, dgamma, dbeta
-
-
-
-
-
-
-
-
 
 
 def dropout_forward(x, dropout_param):
