@@ -218,7 +218,19 @@ class FullyConnectedNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        # Инициализация весов и смещений для всех слоев
+        layer_input_dim = input_dim
+        for i, hidden_dim in enumerate(hidden_dims):
+            self.params['W' + str(i + 1)] = weight_scale * np.random.randn(layer_input_dim, hidden_dim)
+            self.params['b' + str(i + 1)] = np.zeros(hidden_dim)
+            layer_input_dim = hidden_dim
+        # Добавление последнего слоя
+        self.params['W' + str(self.num_layers)] = weight_scale * np.random.randn(layer_input_dim, num_classes)
+        self.params['b' + str(self.num_layers)] = np.zeros(num_classes)
+
+        # Установка типа данных
+        for k, v in self.params.items():
+            self.params[k] = v.astype(dtype)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -280,7 +292,22 @@ class FullyConnectedNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        cache = {}
+        current_input = X
+
+        # Прямой проход через все слои кроме последнего
+        for i in range(1, self.num_layers):
+            current_input, cache['layer' + str(i)] = affine_relu_forward(
+                current_input, self.params['W' + str(i)], self.params['b' + str(i)]
+            )
+
+        # Прямой проход через последний слой
+        scores, cache['layer' + str(self.num_layers)] = affine_forward(
+            current_input, self.params['W' + str(self.num_layers)], self.params['b' + str(self.num_layers)]
+        )
+
+        if y is None:
+            return scores
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -307,7 +334,24 @@ class FullyConnectedNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        loss, grads = 0.0, {}
+        loss, dscores = softmax_loss(scores, y)
+        loss += 0.5 * self.reg * sum(np.sum(self.params['W' + str(i)]**2) for i in range(1, self.num_layers + 1))
+
+        # Обратный проход через последний слой
+        dout, grads['W' + str(self.num_layers)], grads['b' + str(self.num_layers)] = affine_backward(
+            dscores, cache['layer' + str(self.num_layers)]
+        )
+
+        # Обратный проход через остальные слои
+        for i in range(self.num_layers - 1, 0, -1):
+            dout, grads['W' + str(i)], grads['b' + str(i)] = affine_relu_backward(
+                dout, cache['layer' + str(i)]
+            )
+
+        # Добавление регуляризации к градиентам весов
+        for i in range(1, self.num_layers + 1):
+            grads['W' + str(i)] += self.reg * self.params['W' + str(i)]
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
