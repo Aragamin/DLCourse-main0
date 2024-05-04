@@ -55,7 +55,13 @@ class TwoLayerNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        # Инициализация весов и смещений первого слоя
+        self.params['W1'] = weight_scale * np.random.randn(input_dim, hidden_dim)
+        self.params['b1'] = np.zeros(hidden_dim)
+
+        # Инициализация весов и смещений второго слоя
+        self.params['W2'] = weight_scale * np.random.randn(hidden_dim, num_classes)
+        self.params['b2'] = np.zeros(num_classes)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -88,7 +94,14 @@ class TwoLayerNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        # Распаковка переменных из словаря параметров
+        W1, b1 = self.params['W1'], self.params['b1']
+        W2, b2 = self.params['W2'], self.params['b2']
+
+        # Прямой проход первого слоя
+        a1, cache1 = affine_relu_forward(X, W1, b1)
+        # Прямой проход второго слоя
+        scores, cache2 = affine_forward(a1, W2, b2)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -112,7 +125,20 @@ class TwoLayerNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        # Вычисление потерь и начало обратного прохода
+        loss, dscores = softmax_loss(scores, y)
+        loss += 0.5 * self.reg * (np.sum(W1 * W1) + np.sum(W2 * W2))
+
+        # Обратный проход второго слоя
+        da1, dW2, db2 = affine_backward(dscores, cache2)
+        # Обратный проход первого слоя
+        _, dW1, db1 = affine_relu_backward(da1, cache1)
+
+        # Добавление регуляризации к градиентам - супротив переобучения сети - путём добавления штрафа за большие веса.
+        dW2 += self.reg * W2
+        dW1 += self.reg * W1
+
+        grads = {'W1': dW1, 'b1': db1, 'W2': dW2, 'b2': db2}
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
