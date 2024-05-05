@@ -279,14 +279,23 @@ def batchnorm_backward(dout, cache):
     N, D = dout.shape
 
     # Вычисление градиентов
-    dbeta = np.sum(dout, axis=0)
-    dgamma = np.sum(dout * x_normalized, axis=0)
+    dbeta = np.sum(dout, axis=0)  # Суммируем по всем примерам в пакете
+    dgamma = np.sum(dout * x_normalized, axis=0)  # Суммируем по всем примерам в пакете
 
+    # Градиент для x_normalized
     dx_normalized = dout * gamma
-    dsample_var = np.sum(dx_normalized * (x_normalized - sample_mean) * -0.5 * (sample_var + eps)**(-1.5), axis=0)
-    dsample_mean = np.sum(dx_normalized * -1 / np.sqrt(sample_var + eps), axis=0) + dsample_var * np.mean(-2 * (x_normalized - sample_mean), axis=0)
-    dx = dx_normalized / np.sqrt(sample_var + eps) + dsample_var * 2 * (x_normalized - sample_mean) / N + dsample_mean / N
 
+    # Градиент для sample_var
+    dsample_var = np.sum(dx_normalized * (x_normalized - sample_mean) * -0.5 * np.power(sample_var + eps, -1.5), axis=0)
+
+    # Градиент для sample_mean
+    dsample_mean = np.sum(dx_normalized * -1 / np.sqrt(sample_var + eps), axis=0) + dsample_var * np.mean(-2 * (x_normalized - sample_mean), axis=0)
+
+    # Градиент для x
+    dx = dx_normalized / np.sqrt(sample_var + eps) + dsample_var * 2 * (x_normalized - sample_mean) / N + dsample_mean / N
+    # dx = (dx_normalized - np.mean(dx_normalized, axis=0)) / np.sqrt(sample_var + eps) + \
+    #      dsample_var * 2 * (x_normalized - sample_mean) / N + \
+    #      dsample_mean / N
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -336,7 +345,9 @@ def dropout_forward(x, dropout_param):
         #######################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        # Инвертированный dropout в режиме обучения
+        mask = (np.random.rand(*x.shape) < p) / p
+        out = x * mask
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         #######################################################################
@@ -348,7 +359,8 @@ def dropout_forward(x, dropout_param):
         #######################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        # В режиме тестирования просто возвращаем входные данные
+        out = x
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         #######################################################################
@@ -379,7 +391,8 @@ def dropout_backward(dout, cache):
         #######################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        # Инвертированный dropout в режиме обучения
+        dx = dout * mask
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         #######################################################################

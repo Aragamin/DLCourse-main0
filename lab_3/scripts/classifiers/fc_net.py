@@ -223,6 +223,11 @@ class FullyConnectedNet(object):
         for i, hidden_dim in enumerate(hidden_dims):
             self.params['W' + str(i + 1)] = weight_scale * np.random.randn(layer_input_dim, hidden_dim)
             self.params['b' + str(i + 1)] = np.zeros(hidden_dim)
+
+            if self.normalization == "batchnorm":
+                self.params['gamma' + str(i + 1)] = np.ones(hidden_dim)
+                self.params['beta' + str(i + 1)] = np.zeros(hidden_dim)
+
             layer_input_dim = hidden_dim
         # Добавление последнего слоя
         self.params['W' + str(self.num_layers)] = weight_scale * np.random.randn(layer_input_dim, num_classes)
@@ -297,9 +302,22 @@ class FullyConnectedNet(object):
 
         # Прямой проход через все слои кроме последнего
         for i in range(1, self.num_layers):
-            current_input, cache['layer' + str(i)] = affine_relu_forward(
+            # Прямой проход через аффинный слой
+            affine_out, cache['affine' + str(i)] = affine_forward(
                 current_input, self.params['W' + str(i)], self.params['b' + str(i)]
             )
+
+            if self.normalization == "batchnorm":
+                # Прямой проход через слой батч-нормализации
+                bn_out, cache['bn' + str(i)] = batchnorm_forward(
+                    affine_out, self.params['gamma' + str(i)], self.params['beta' + str(i)], self.bn_params[i-1]
+                )
+                current_input, cache['relu' + str(i)] = relu_forward(bn_out)
+            else:
+                current_input, cache['relu' + str(i)] = relu_forward(affine_out)
+
+            if self.use_dropout:
+                current_input, cache['dropout' + str(i)] = dropout_forward(current_input, self.dropout_param)
 
         # Прямой проход через последний слой
         scores, cache['layer' + str(self.num_layers)] = affine_forward(
@@ -345,9 +363,19 @@ class FullyConnectedNet(object):
 
         # Обратный проход через остальные слои
         for i in range(self.num_layers - 1, 0, -1):
-            dout, grads['W' + str(i)], grads['b' + str(i)] = affine_relu_backward(
-                dout, cache['layer' + str(i)]
-            )
+
+            if self.use_dropout:
+                dout = dropout_backward(dout, cache['dropout' + str(i)])
+
+            # Обратный проход через слой активации ReLU
+            dout = relu_backward(dout, cache['relu' + str(i)])
+
+            if self.normalization == "batchnorm":
+                # Обратный проход через слой батч-нормализации
+                dout, grads['gamma' + str(i)], grads['beta' + str(i)] = batchnorm_backward(dout, cache['bn' + str(i)])
+
+            # Обратный проход через аффинный слой
+            dout, grads['W' + str(i)], grads['b' + str(i)] = affine_backward(dout, cache['affine' + str(i)])
 
         # Добавление регуляризации к градиентам весов
         for i in range(1, self.num_layers + 1):
