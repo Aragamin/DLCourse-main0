@@ -214,7 +214,7 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         running_var = momentum * running_var + (1 - momentum) * sample_var
 
         # Сохранение промежуточных значений для обратного прохода
-        cache = (x_normalized, sample_mean, sample_var, gamma, beta, eps)
+        cache = (x, x_normalized, sample_mean, sample_var, gamma, eps)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         #######################################################################
@@ -234,6 +234,9 @@ def batchnorm_forward(x, gamma, beta, bn_param):
 
         # Масштабирование и сдвиг
         out = gamma * x_normalized + beta
+
+        cache = None
+
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         #######################################################################
@@ -275,27 +278,27 @@ def batchnorm_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    x_normalized, sample_mean, sample_var, gamma, beta, eps = cache
+    # Распаковываем кэш
+    x, x_normalized, sample_mean, sample_var, gamma, eps = cache
     N, D = dout.shape
 
-    # Вычисление градиентов
-    dbeta = np.sum(dout, axis=0)  # Суммируем по всем примерам в пакете
-    dgamma = np.sum(dout * x_normalized, axis=0)  # Суммируем по всем примерам в пакете
+    # Gradient of beta and gamma
+    dbeta = np.sum(dout, axis=0)
+    dgamma = np.sum(dout * x_normalized, axis=0)
 
-    # Градиент для x_normalized
+    # Intermediate partial derivatives
     dx_normalized = dout * gamma
 
-    # Градиент для sample_var
-    dsample_var = np.sum(dx_normalized * (x_normalized - sample_mean) * -0.5 * np.power(sample_var + eps, -1.5), axis=0)
+    # Partial derivative of the variance
+    dsample_var = np.sum(dx_normalized * (x - sample_mean) * -0.5 * (sample_var + eps)**(-1.5), axis=0)
 
-    # Градиент для sample_mean
-    dsample_mean = np.sum(dx_normalized * -1 / np.sqrt(sample_var + eps), axis=0) + dsample_var * np.mean(-2 * (x_normalized - sample_mean), axis=0)
+    # Partial derivative of the mean
+    dsample_mean = np.sum(-dx_normalized / np.sqrt(sample_var + eps), axis=0) + dsample_var * np.mean(-2 * (x - sample_mean), axis=0)
 
-    # Градиент для x
-    dx = dx_normalized / np.sqrt(sample_var + eps) + dsample_var * 2 * (x_normalized - sample_mean) / N + dsample_mean / N
-    # dx = (dx_normalized - np.mean(dx_normalized, axis=0)) / np.sqrt(sample_var + eps) + \
-    #      dsample_var * 2 * (x_normalized - sample_mean) / N + \
-    #      dsample_mean / N
+    # Partial derivative with respect to x
+    dx = (dx_normalized / np.sqrt(sample_var + eps)) + (dsample_var * 2 * (x - sample_mean) / N) + (dsample_mean / N)
+
+
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
