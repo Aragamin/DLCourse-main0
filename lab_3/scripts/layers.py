@@ -441,33 +441,33 @@ def conv_forward_naive(x, w, b, conv_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pad = conv_param['pad']
-    stride = conv_param['stride']
-
     N, C, H, W = x.shape
     F, _, HH, WW = w.shape
+    stride, pad = conv_param['stride'], conv_param['pad']
 
-    # Рассчитываем размеры выходного тензора
-    H_out = 1 + (H + 2 * pad - HH) // stride
-    W_out = 1 + (W + 2 * pad - WW) // stride
+    # Вычисляем размеры выходного тензора
+    H_out = int(1 + (H + 2 * pad - HH) / stride)
+    W_out = int(1 + (W + 2 * pad - WW) / stride)
 
-    # Инициализируем выходной тензор нулями
+    # Инициализируем выходной тензор
     out = np.zeros((N, F, H_out, W_out))
 
-    # Добавление паддинга к входному изображению
+    # Применяем padding к входному тензору
     x_padded = np.pad(x, ((0, 0), (0, 0), (pad, pad), (pad, pad)), mode='constant')
 
-    # Выполнение свертки
-    for n in range(N):  # По каждому изображению
-        for f in range(F):  # По каждому фильтру
-            for h in range(H_out):
-                for w in range(W_out):
-                    h_start = h * stride
-                    w_start = w * stride
-                    h_end = h_start + HH
-                    w_end = w_start + WW
-                    # Свертка соответствующего куска изображения с фильтром
-                    out[n, f, h, w] = np.sum(x_padded[n, :, h_start:h_end, w_start:w_end] * w[f]) + b[f]
+    # Проходимся по каждому элементу выходного тензора
+    for n in range(N):
+        for f in range(F):
+            for i in range(H_out):
+                for j in range(W_out):
+                    # Вычисляем позицию окна на входном тензоре
+                    i_start = i * stride
+                    i_end = i_start + HH
+                    j_start = j * stride
+                    j_end = j_start + WW
+
+                    # Выполняем свертку для текущего окна
+                    out[n, f, i, j] = np.sum(x_padded[n, :, i_start:i_end, j_start:j_end] * w[f]) + b[f]
 
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
@@ -498,41 +498,39 @@ def conv_backward_naive(dout, cache):
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
     x, w, b, conv_param = cache
-    stride = conv_param['stride']
-    pad = conv_param['pad']
-
     N, C, H, W = x.shape
     F, _, HH, WW = w.shape
+    stride, pad = conv_param['stride'], conv_param['pad']
     _, _, H_out, W_out = dout.shape
 
-    # Initialize gradients
+    # Инициализируем градиенты
     dx = np.zeros_like(x)
     dw = np.zeros_like(w)
     db = np.zeros_like(b)
 
-    # Pad x and dx
+    # Применяем padding к входному тензору и градиенту
     x_padded = np.pad(x, ((0, 0), (0, 0), (pad, pad), (pad, pad)), mode='constant')
     dx_padded = np.pad(dx, ((0, 0), (0, 0), (pad, pad), (pad, pad)), mode='constant')
 
+    # Проходимся по каждому элементу градиента dout
     for n in range(N):
         for f in range(F):
-            for h in range(H_out):
-                for w in range(W_out):
-                    h_start = h * stride
-                    w_start = w * stride
-                    h_end = h_start + HH
-                    w_end = w_start + WW
+            for i in range(H_out):
+                for j in range(W_out):
+                    # Вычисляем позицию окна на входном тензоре
+                    i_start = i * stride
+                    i_end = i_start + HH
+                    j_start = j * stride
+                    j_end = j_start + WW
 
-                    # Gradient of the output (dout) with respect to the weight matrix (dw) and input data (dx)
-                    window = x_padded[n, :, h_start:h_end, w_start:w_end]
-                    dw[f] += window * dout[n, f, h, w]
-                    dx_padded[n, :, h_start:h_end, w_start:w_end] += w[f] * dout[n, f, h, w]
+                    # Вычисляем градиент для текущего окна
+                    window = x_padded[n, :, i_start:i_end, j_start:j_end]
+                    db[f] += dout[n, f, i, j]
+                    dw[f] += window * dout[n, f, i, j]
+                    dx_padded[n, :, i_start:i_end, j_start:j_end] += w[f] * dout[n, f, i, j]
 
-            # Sum over all gradients for the bias term
-            db[f] += np.sum(dout[n, f])
-
-    # Remove padding from dx
-    dx = dx_padded[:, :, pad:-pad, pad:-pad]
+    # Удаляем padding из градиента dx
+    dx = dx_padded[:, :, pad:pad+H, pad:pad+W]
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -566,7 +564,25 @@ def max_pool_forward_naive(x, pool_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    out = None
+    N, C, H, W = x.shape
+    pool_height, pool_width, stride = pool_param['pool_height'], pool_param['pool_width'], pool_param['stride']
+    H_out = 1 + (H - pool_height) // stride
+    W_out = 1 + (W - pool_width) // stride
+    out = np.zeros((N, C, H_out, W_out))
+
+    for n in range(N):  # Проходим по всем изображениям
+        for c in range(C):  # Проходим по всем каналам
+            for h_out in range(H_out):
+                for w_out in range(W_out):
+                    # Вычисляем координаты окна в исходном изображении
+                    h_start = h_out * stride
+                    h_end = h_start + pool_height
+                    w_start = w_out * stride
+                    w_end = w_start + pool_width
+                    # Находим максимальное значение в окне
+                    out[n, c, h_out, w_out] = np.max(x[n, c, h_start:h_end, w_start:w_end])
+
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -593,7 +609,27 @@ def max_pool_backward_naive(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    x, pool_param = cache
+    N, C, H, W = x.shape
+    pool_height, pool_width, stride = pool_param['pool_height'], pool_param['pool_width'], pool_param['stride']
+    H_out, W_out = dout.shape[2:]
+    dx = np.zeros_like(x)
+
+    for n in range(N):
+        for c in range(C):
+            for h_out in range(H_out):
+                for w_out in range(W_out):
+                    # Находим индекс максимального элемента в окне
+                    h_start = h_out * stride
+                    h_end = h_start + pool_height
+                    w_start = w_out * stride
+                    w_end = w_start + pool_width
+                    window = x[n, c, h_start:h_end, w_start:w_end]
+                    max_index = np.argmax(window)
+                    # Преобразуем индекс в координаты (h, w)
+                    h_max, w_max = np.unravel_index(max_index, window.shape)
+                    # Пропагируем градиент только к максимальному элементу
+                    dx[n, c, h_start + h_max, w_start + w_max] = dout[n, c, h_out, w_out]
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
