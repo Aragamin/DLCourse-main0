@@ -11,6 +11,9 @@ import numpy as np
 
 from scripts import optim
 
+# !!!
+import torch
+
 
 class Solver(object):
     """
@@ -161,8 +164,13 @@ class Solver(object):
         self.val_acc_history = []
 
         # Make a deep copy of the optim_config for each parameter
+        # Попытка внести возможность распараллеливания
         self.optim_configs = {}
-        for p in self.model.params:
+        if isinstance(self.model, torch.nn.DataParallel):
+            params = self.model.module.params
+        else:
+            params = self.model.params
+        for p in params:
             d = {k: v for k, v in self.optim_config.items()}
             self.optim_configs[p] = d
 
@@ -178,15 +186,23 @@ class Solver(object):
         y_batch = self.y_train[batch_mask]
 
         # Compute loss and gradient
-        loss, grads = self.model.loss(X_batch, y_batch)
+        # loss, grads = self.model.loss(X_batch, y_batch)
+        # self.loss_history.append(loss)
+        # Попытка внести возможность распараллеливания
+        if isinstance(self.model, torch.nn.DataParallel):
+            loss, grads = self.model.module.loss(X_batch, y_batch)
+            params = self.model.module.params
+        else:
+            loss, grads = self.model.loss(X_batch, y_batch)
+            params = self.model.params
         self.loss_history.append(loss)
 
         # Perform a parameter update
-        for p, w in self.model.params.items():
+        for p, w in params.items():
             dw = grads[p]
             config = self.optim_configs[p]
             next_w, next_config = self.update_rule(w, dw, config)
-            self.model.params[p] = next_w
+            params[p] = next_w
             self.optim_configs[p] = next_config
 
     def _save_checkpoint(self):
@@ -241,14 +257,24 @@ class Solver(object):
         if N % batch_size != 0:
             num_batches += 1
         y_pred = []
+
+        # for i in range(num_batches):
+        #     start = i * batch_size
+        #     end = (i + 1) * batch_size
+        #     scores = self.model.loss(X[start:end])
+        #     y_pred.append(np.argmax(scores, axis=1))
+
         for i in range(num_batches):
             start = i * batch_size
             end = (i + 1) * batch_size
-            scores = self.model.loss(X[start:end])
+            if isinstance(self.model, torch.nn.DataParallel):
+                scores = self.model.module.loss(X[start:end])
+            else:
+                scores = self.model.loss(X[start:end])
             y_pred.append(np.argmax(scores, axis=1))
+
         y_pred = np.hstack(y_pred)
         acc = np.mean(y_pred == y)
-
         return acc
 
     def train(self):
@@ -299,10 +325,20 @@ class Solver(object):
                     )
 
                 # Keep track of the best model
+                # if val_acc > self.best_val_acc:
+                #     self.best_val_acc = val_acc
+                #     self.best_params = {}
+                #     for k, v in self.model.params.items():
+                #         self.best_params[k] = v.copy()
+
                 if val_acc > self.best_val_acc:
                     self.best_val_acc = val_acc
                     self.best_params = {}
-                    for k, v in self.model.params.items():
+                    if isinstance(self.model, torch.nn.DataParallel):
+                        params = self.model.module.params
+                    else:
+                        params = self.model.params
+                    for k, v in params.items():
                         self.best_params[k] = v.copy()
 
         # At the end of training swap the best params into the model
