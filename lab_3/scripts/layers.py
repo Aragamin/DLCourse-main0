@@ -441,7 +441,34 @@ def conv_forward_naive(x, w, b, conv_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    pad = conv_param['pad']
+    stride = conv_param['stride']
+
+    N, C, H, W = x.shape
+    F, _, HH, WW = w.shape
+
+    # Рассчитываем размеры выходного тензора
+    H_out = 1 + (H + 2 * pad - HH) // stride
+    W_out = 1 + (W + 2 * pad - WW) // stride
+
+    # Инициализируем выходной тензор нулями
+    out = np.zeros((N, F, H_out, W_out))
+
+    # Добавление паддинга к входному изображению
+    x_padded = np.pad(x, ((0, 0), (0, 0), (pad, pad), (pad, pad)), mode='constant')
+
+    # Выполнение свертки
+    for n in range(N):  # По каждому изображению
+        for f in range(F):  # По каждому фильтру
+            for h in range(H_out):
+                for w in range(W_out):
+                    h_start = h * stride
+                    w_start = w * stride
+                    h_end = h_start + HH
+                    w_end = w_start + WW
+                    # Свертка соответствующего куска изображения с фильтром
+                    out[n, f, h, w] = np.sum(x_padded[n, :, h_start:h_end, w_start:w_end] * w[f]) + b[f]
+
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -470,7 +497,42 @@ def conv_backward_naive(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    x, w, b, conv_param = cache
+    stride = conv_param['stride']
+    pad = conv_param['pad']
+
+    N, C, H, W = x.shape
+    F, _, HH, WW = w.shape
+    _, _, H_out, W_out = dout.shape
+
+    # Initialize gradients
+    dx = np.zeros_like(x)
+    dw = np.zeros_like(w)
+    db = np.zeros_like(b)
+
+    # Pad x and dx
+    x_padded = np.pad(x, ((0, 0), (0, 0), (pad, pad), (pad, pad)), mode='constant')
+    dx_padded = np.pad(dx, ((0, 0), (0, 0), (pad, pad), (pad, pad)), mode='constant')
+
+    for n in range(N):
+        for f in range(F):
+            for h in range(H_out):
+                for w in range(W_out):
+                    h_start = h * stride
+                    w_start = w * stride
+                    h_end = h_start + HH
+                    w_end = w_start + WW
+
+                    # Gradient of the output (dout) with respect to the weight matrix (dw) and input data (dx)
+                    window = x_padded[n, :, h_start:h_end, w_start:w_end]
+                    dw[f] += window * dout[n, f, h, w]
+                    dx_padded[n, :, h_start:h_end, w_start:w_end] += w[f] * dout[n, f, h, w]
+
+            # Sum over all gradients for the bias term
+            db[f] += np.sum(dout[n, f])
+
+    # Remove padding from dx
+    dx = dx_padded[:, :, pad:-pad, pad:-pad]
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
