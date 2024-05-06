@@ -1,3 +1,4 @@
+# cython: language_level=2
 from distutils.core import setup
 from distutils.extension import Extension
 from Cython.Build import cythonize

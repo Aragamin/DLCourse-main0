@@ -108,3 +108,26 @@ def conv_relu_pool_backward(dout, cache):
     da = relu_backward(ds, relu_cache)
     dx, dw, db = conv_backward_fast(da, conv_cache)
     return dx, dw, db
+
+
+## My function
+
+def softmax_loss_gradient(scores, y):
+    """
+    Compute the gradient of the softmax loss function with respect to scores.
+
+    Inputs:
+    - scores: numpy array of shape (N, C) containing scores for N examples across C classes.
+    - y: numpy array of shape (N,) containing the true class labels for each of the N examples.
+
+    Returns:
+    - grad: numpy array of shape (N, C) containing the gradient of the loss with respect to scores.
+    """
+    N, C = scores.shape
+    exp_scores = np.exp(scores)
+    sum_exp_scores = np.sum(exp_scores, axis=1, keepdims=True)
+    softmax_probs = exp_scores / sum_exp_scores
+
+    grad = softmax_probs.copy()
+    grad[np.arange(N), y] -= 1
+    return grad
