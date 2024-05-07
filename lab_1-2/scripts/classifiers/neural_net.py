@@ -80,9 +80,12 @@ class TwoLayerNet(object):
         #############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        # Forward pass: calculate class scores
-        hidden_layer = np.maximum(0, np.dot(X, W1) + b1)  # ReLU activation
-        scores = np.dot(hidden_layer, W2) + b2
+        # Первый слой: линейный
+        hidden_linear = X.dot(W1) + b1
+        # Первый слой: ReLU
+        hidden_relu = np.maximum(0, hidden_linear)
+        # Второй слой: линейный
+        scores = hidden_relu.dot(W2) + b2
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -100,14 +103,15 @@ class TwoLayerNet(object):
         #############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        shifted_logits = scores - np.max(scores, axis=1, keepdims=True)
-        Z = np.sum(np.exp(shifted_logits), axis=1, keepdims=True)
-        log_probs = shifted_logits - np.log(Z)
-        probs = np.exp(log_probs)
-        correct_log_probs = -log_probs[np.arange(N), y]
-        data_loss = np.sum(correct_log_probs) / N
-        # L-2 регуляризация
-        reg_loss = 0.5 * reg * (np.sum(W1 * W1) + np.sum(W2 * W2))
+        # Вычисление стабильных значений softmax
+        exp_scores = np.exp(scores - np.max(scores, axis=1, keepdims=True))
+        probs = exp_scores / np.sum(exp_scores, axis=1, keepdims=True)
+        # Вычисление потерь: среднее от логарифма правильных вероятностей
+        correct_logprobs = -np.log(probs[np.arange(N), y])
+        data_loss = np.sum(correct_logprobs) / N
+        # Потери от регуляризации
+        reg_loss = reg * (np.sum(W1 * W1) + np.sum(W2 * W2))
+        # Общие потери
         loss = data_loss + reg_loss
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
@@ -121,19 +125,23 @@ class TwoLayerNet(object):
         #############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        # Backward pass: compute gradients
-        grads = {}
+        # Градиент по выходам сети
         dscores = probs
         dscores[np.arange(N), y] -= 1
         dscores /= N
-        grads['W2'] = np.dot(hidden_layer.T, dscores)
+
+        # Градиенты по параметрам второго слоя
+        grads['W2'] = hidden_relu.T.dot(dscores) + 2 * reg * W2
         grads['b2'] = np.sum(dscores, axis=0)
-        dhidden = np.dot(dscores, W2.T)
-        dhidden[hidden_layer <= 0] = 0
-        grads['W1'] = np.dot(X.T, dhidden)
+
+        # Промежуточный градиент после второго слоя
+        dhidden = dscores.dot(W2.T)
+        # Производная ReLU
+        dhidden[hidden_relu <= 0] = 0
+
+        # Градиенты по параметрам первого слоя
+        grads['W1'] = X.T.dot(dhidden) + 2 * reg * W1
         grads['b1'] = np.sum(dhidden, axis=0)
-        grads['W2'] += 2 * reg * W2
-        grads['W1'] += 2 * reg * W1
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -178,9 +186,10 @@ class TwoLayerNet(object):
             #########################################################################
             # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-            batch_indices = np.random.choice(num_train, batch_size, replace=True)
-            X_batch = X[batch_indices]
-            y_batch = y[batch_indices]
+            # Выбор случайного мини-батча
+            indices = np.random.choice(num_train, batch_size, replace=True)
+            X_batch = X[indices]
+            y_batch = y[indices]
 
             # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -196,14 +205,11 @@ class TwoLayerNet(object):
             #########################################################################
             # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-            # Gradient clipping
-            for param_name in grads:
-                grads[param_name] = np.clip(grads[param_name], -1, 1)
-
-            for param_name in self.params:
-                self.params[param_name] -= learning_rate * grads[param_name]
-
-
+            # Обновление параметров сети
+            self.params['W1'] -= learning_rate * grads['W1']
+            self.params['b1'] -= learning_rate * grads['b1']
+            self.params['W2'] -= learning_rate * grads['W2']
+            self.params['b2'] -= learning_rate * grads['b2']
 
             # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
@@ -249,8 +255,14 @@ class TwoLayerNet(object):
         ###########################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        hidden_layer = np.maximum(0, np.dot(X, self.params['W1']) + self.params['b1'])
-        scores = np.dot(hidden_layer, self.params['W2']) + self.params['b2']
+        W1, b1 = self.params['W1'], self.params['b1']
+        W2, b2 = self.params['W2'], self.params['b2']
+
+        # Прямой проход: первый слой
+        hidden_layer = np.maximum(0, X.dot(W1) + b1)
+        # Прямой проход: второй слой (вычисление оценок)
+        scores = hidden_layer.dot(W2) + b2
+        # Выбор класса с максимальным значением оценки
         y_pred = np.argmax(scores, axis=1)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
